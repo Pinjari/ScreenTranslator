@@ -2,6 +2,7 @@ package com.aminpinjari.screentranslater.repo
 
 import android.content.Context
 import com.google.mlkit.common.model.DownloadConditions
+import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
@@ -12,22 +13,22 @@ class TranslationRepository(private val context: Context) {
     private var translator: Translator? = null
     private var currentLang: String? = null
 
-    fun prepareLanguage(lang: String, onReady: (Boolean) -> Unit) {
-        // if language changed, reset translator
+    fun prepareLanguage(
+        lang: String,
+        onReady: (Boolean) -> Unit
+    ) {
         if (lang != currentLang) {
             translator?.close()
             translator = null
         }
 
         val options = TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.ENGLISH) // adjust source if needed
+            .setSourceLanguage(TranslateLanguage.ENGLISH)
             .setTargetLanguage(lang)
             .build()
 
         val client = Translation.getClient(options)
-        val conditions = DownloadConditions.Builder()
-            .requireWifi() // only download on WiFi
-            .build()
+        val conditions = DownloadConditions.Builder().requireWifi().build()
 
         client.downloadModelIfNeeded(conditions)
             .addOnSuccessListener {
@@ -36,21 +37,14 @@ class TranslationRepository(private val context: Context) {
                 onReady(true)
             }
             .addOnFailureListener {
-                onReady(false) // ensure spinner hides
-            }
-            .addOnCanceledListener {
-                onReady(false) // ensure spinner hides
+                onReady(false)
             }
     }
 
     fun translate(text: String, onResult: (String) -> Unit) {
-        val client = translator
-        if (client == null) {
-            onResult(text) // fallback if not ready
-            return
-        }
-        client.translate(text)
-            .addOnSuccessListener { translated -> onResult(translated) }
-            .addOnFailureListener { onResult(text) }
+        translator?.translate(text)
+            ?.addOnSuccessListener { translated -> onResult(translated) }
+            ?.addOnFailureListener { onResult(text) }
+            ?: onResult(text)
     }
 }

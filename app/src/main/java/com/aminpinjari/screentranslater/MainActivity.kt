@@ -1,7 +1,14 @@
 package com.aminpinjari.screentranslater
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
@@ -13,6 +20,8 @@ import com.aminpinjari.screentranslater.repo.TranslationRepository
 import com.aminpinjari.screentranslater.translate.LanguagePickerDialog
 import com.aminpinjari.screentranslater.translate.TranslationManager
 import com.aminpinjari.screentranslater.translate.TranslationViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -21,7 +30,16 @@ class MainActivity : AppCompatActivity() {
     private val translationVM: TranslationViewModel by viewModels {
         TranslationViewModel.Factory(translationRepo)
     }
-
+    private var loadingDialog: AlertDialog? = null
+    private val loadingMessages = listOf(
+        "Downloading language model…",
+        "Almost there…",
+        "Loading magic words…",
+        "Preparing your translator…"
+    )
+    private var messageIndex = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private var messageRunnable: Runnable? = null
     private lateinit var translationManager: TranslationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,9 +59,7 @@ class MainActivity : AppCompatActivity() {
 
         // initialize TranslationManager
         translationManager = TranslationManager(
-            this,
-            translationVM,
-            lifecycleScope
+            this, translationVM, lifecycleScope
         )
         translationManager.startObserving(supportActionBar, binding.navView)
 
@@ -53,5 +69,56 @@ class MainActivity : AppCompatActivity() {
                 translationVM.setLanguage(lang)
             }
         }
+        // show/hide spinner
+        lifecycleScope.launch {
+            translationVM.loading.collectLatest { isLoading ->
+                if (isLoading) showLoadingDialog() else hideLoadingDialog()
+            }
+        }
+    }
+
+    private fun showLoadingDialog() {
+        if (loadingDialog == null) {
+            val progressBar = ProgressBar(this).apply {
+                isIndeterminate = true
+            }
+
+            val progressText = TextView(this).apply {
+                text = loadingMessages[0]
+                gravity = Gravity.CENTER
+                setPadding(0, 16, 0, 0)
+                textSize = 16f
+            }
+
+            val layout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(50, 50, 50, 50)
+                addView(progressBar)
+                addView(progressText)
+            }
+
+            loadingDialog = AlertDialog.Builder(this).setTitle("Preparing Language").setView(layout)
+                .setCancelable(false).create()
+
+            // safe runnable
+            messageRunnable = object : Runnable {
+                override fun run() {
+                    messageIndex = (messageIndex + 1) % loadingMessages.size
+                    progressText.text = loadingMessages[messageIndex]
+                    handler.postDelayed(this, 2000)
+                }
+            }
+        }
+
+        loadingDialog?.show()
+        messageRunnable?.let { handler.postDelayed(it, 2000) }
+    }
+
+    private fun hideLoadingDialog() {
+        messageRunnable?.let { handler.removeCallbacks(it) }
+        messageRunnable = null
+        loadingDialog?.dismiss()
+        loadingDialog = null
     }
 }
