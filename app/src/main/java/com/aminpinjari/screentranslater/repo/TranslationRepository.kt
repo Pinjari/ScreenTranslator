@@ -28,7 +28,7 @@ class TranslationRepository(private val context: Context) {
             .build()
 
         val client = Translation.getClient(options)
-        val conditions = DownloadConditions.Builder().requireWifi().build()
+        val conditions = DownloadConditions.Builder().build()
 
         client.downloadModelIfNeeded(conditions)
             .addOnSuccessListener {

@@ -4,12 +4,15 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -65,10 +68,45 @@ class MainActivity : AppCompatActivity() {
 
         // FAB for language selection
         binding.fabTranslate.setOnClickListener {
-            LanguagePickerDialog.show(this) { lang ->
+            LanguagePickerDialog.show(this) { lang, keep ->
                 translationVM.setLanguage(lang)
+                if (keep) {
+                    translationVM.setPersistentLanguage(lang) // new method
+                } else {
+                    translationVM.clearPersistentLanguage()
+                }
             }
         }
+
+        navController.addOnDestinationChangedListener { _, _, _ ->
+            val lang = translationVM.persistentLanguage.value
+            if (lang != null) {
+                // user wants persistent translation
+                translationManager.translateCurrentScreen(supportActionBar, binding.navView)
+            } else {
+                // restore originals if user unchecked
+                translationManager.restoreOriginals(supportActionBar, binding.navView)
+            }
+        }
+
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager,
+                    f: Fragment,
+                    v: View,
+                    savedInstanceState: Bundle?
+                ) {
+                    if (translationVM.persistentLanguage.value != null) {
+                        Handler(Looper.getMainLooper()).post {
+                            translationManager.translateFragmentViews(f)
+                        }                    } else {
+                        translationManager.restoreOriginals()
+                    }
+                }
+            }, true
+        )
+
         // show/hide spinner
         lifecycleScope.launch {
             translationVM.loading.collectLatest { isLoading ->

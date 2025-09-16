@@ -21,6 +21,23 @@ class TranslationViewModel(private val repo: TranslationRepository) : ViewModel(
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _persistentLanguage = MutableStateFlow<String?>(null)
+    val persistentLanguage: StateFlow<String?> = _persistentLanguage
+
+    fun setPersistentLanguage(lang: String) {
+        _persistentLanguage.value = lang
+    }
+
+    fun clearPersistentLanguage() {
+        _persistentLanguage.value = null
+    }
+
+    fun triggerTranslation() {
+        persistentLanguage.value?.let { lang ->
+            _translationTrigger.tryEmit(lang)
+        }
+    }
+
     fun setLanguage(lang: String) {
         viewModelScope.launch {
             _loading.value = true
