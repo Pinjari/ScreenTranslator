@@ -7,6 +7,7 @@ import androidx.appcompat.app.ActionBar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleCoroutineScope
+import androidx.recyclerview.widget.RecyclerView
 import com.aminpinjari.screentranslater.R
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import kotlinx.coroutines.flow.collectLatest
@@ -94,7 +95,16 @@ class TranslationManager(
 
     private fun traverseViews(view: View) {
         when (view) {
-            is ViewGroup -> for (i in 0 until view.childCount) traverseViews(view.getChildAt(i))
+            is ViewGroup -> {
+                // Special case: RecyclerView
+                if (view is RecyclerView) {
+                    translateRecyclerView(view)
+                }
+
+                for (i in 0 until view.childCount) {
+                    traverseViews(view.getChildAt(i))
+                }
+            }
             is TextView -> {
                 val tagKey = R.id.original_text
                 val original = (view.getTag(tagKey) as? String) ?: view.text.toString().also {
@@ -107,6 +117,34 @@ class TranslationManager(
                 }
             }
         }
+    }
+
+    private fun translateRecyclerView(recyclerView: RecyclerView) {
+        // Initial children
+        for (i in 0 until recyclerView.childCount) {
+            traverseViews(recyclerView.getChildAt(i))
+        }
+
+        // Re-translate on scroll (new views bound)
+        recyclerView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                for (i in 0 until rv.childCount) {
+                    traverseViews(rv.getChildAt(i))
+                }
+            }
+        })
+
+        // Also handle adapter data changes
+        recyclerView.adapter?.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() {
+                for (i in 0 until recyclerView.childCount) {
+                    traverseViews(recyclerView.getChildAt(i))
+                }
+            }
+
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = onChanged()
+            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = onChanged()
+        })
     }
 
     fun translateFragmentViews(fragment: Fragment) {

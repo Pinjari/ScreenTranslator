@@ -2,7 +2,6 @@ package com.aminpinjari.screentranslater.repo
 
 import android.content.Context
 import com.google.mlkit.common.model.DownloadConditions
-import com.google.mlkit.common.model.RemoteModelManager
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
@@ -13,10 +12,7 @@ class TranslationRepository(private val context: Context) {
     private var translator: Translator? = null
     private var currentLang: String? = null
 
-    fun prepareLanguage(
-        lang: String,
-        onReady: (Boolean) -> Unit
-    ) {
+    fun prepareLanguage(lang: String, onReady: (Boolean) -> Unit) {
         if (lang != currentLang) {
             translator?.close()
             translator = null

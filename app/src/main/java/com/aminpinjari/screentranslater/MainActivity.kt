@@ -33,6 +33,7 @@ class MainActivity : AppCompatActivity() {
     private val translationVM: TranslationViewModel by viewModels {
         TranslationViewModel.Factory(translationRepo)
     }
+
     private var loadingDialog: AlertDialog? = null
     private val loadingMessages = listOf(
         "Downloading language model…",
@@ -43,6 +44,7 @@ class MainActivity : AppCompatActivity() {
     private var messageIndex = 0
     private val handler = Handler(Looper.getMainLooper())
     private var messageRunnable: Runnable? = null
+
     private lateinit var translationManager: TranslationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,7 +52,6 @@ class MainActivity : AppCompatActivity() {
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         setSupportActionBar(binding.toolbar)
 
         val navController = findNavController(R.id.nav_host_fragment_activity_main)
@@ -60,35 +61,33 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         binding.navView.setupWithNavController(navController)
 
-        // initialize TranslationManager
-        translationManager = TranslationManager(
-            this, translationVM, lifecycleScope
-        )
+        // TranslationManager handles all view/scroll/recycler translations
+        translationManager = TranslationManager(this, translationVM, lifecycleScope)
         translationManager.startObserving(supportActionBar, binding.navView)
 
-        // FAB for language selection
+        // FAB → language picker
         binding.fabTranslate.setOnClickListener {
             LanguagePickerDialog.show(this) { lang, keep ->
                 translationVM.setLanguage(lang)
                 if (keep) {
-                    translationVM.setPersistentLanguage(lang) // new method
+                    translationVM.setPersistentLanguage(lang)
                 } else {
                     translationVM.clearPersistentLanguage()
                 }
             }
         }
 
+        // Handle navigation changes
         navController.addOnDestinationChangedListener { _, _, _ ->
             val lang = translationVM.persistentLanguage.value
             if (lang != null) {
-                // user wants persistent translation
                 translationManager.translateCurrentScreen(supportActionBar, binding.navView)
             } else {
-                // restore originals if user unchecked
                 translationManager.restoreOriginals(supportActionBar, binding.navView)
             }
         }
 
+        // Auto-translate when any fragment's view is created
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             object : FragmentManager.FragmentLifecycleCallbacks() {
                 override fun onFragmentViewCreated(
@@ -100,14 +99,16 @@ class MainActivity : AppCompatActivity() {
                     if (translationVM.persistentLanguage.value != null) {
                         Handler(Looper.getMainLooper()).post {
                             translationManager.translateFragmentViews(f)
-                        }                    } else {
+                        }
+                    } else {
                         translationManager.restoreOriginals()
                     }
                 }
-            }, true
+            },
+            true
         )
 
-        // show/hide spinner
+        // Loading dialog state
         lifecycleScope.launch {
             translationVM.loading.collectLatest { isLoading ->
                 if (isLoading) showLoadingDialog() else hideLoadingDialog()
@@ -115,12 +116,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // region Loading dialog
     private fun showLoadingDialog() {
         if (loadingDialog == null) {
-            val progressBar = ProgressBar(this).apply {
-                isIndeterminate = true
-            }
-
+            val progressBar = ProgressBar(this).apply { isIndeterminate = true }
             val progressText = TextView(this).apply {
                 text = loadingMessages[0]
                 gravity = Gravity.CENTER
@@ -136,10 +135,12 @@ class MainActivity : AppCompatActivity() {
                 addView(progressText)
             }
 
-            loadingDialog = AlertDialog.Builder(this).setTitle("Preparing Language").setView(layout)
-                .setCancelable(false).create()
+            loadingDialog = AlertDialog.Builder(this)
+                .setTitle("Preparing Language")
+                .setView(layout)
+                .setCancelable(false)
+                .create()
 
-            // safe runnable
             messageRunnable = object : Runnable {
                 override fun run() {
                     messageIndex = (messageIndex + 1) % loadingMessages.size
@@ -159,4 +160,5 @@ class MainActivity : AppCompatActivity() {
         loadingDialog?.dismiss()
         loadingDialog = null
     }
+    // endregion
 }
