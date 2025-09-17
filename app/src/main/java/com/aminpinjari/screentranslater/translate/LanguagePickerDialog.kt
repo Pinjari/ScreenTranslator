@@ -2,9 +2,10 @@ package com.aminpinjari.screentranslater.translate
 
 import android.app.AlertDialog
 import android.content.Context
-import android.view.LayoutInflater
 import android.widget.CheckBox
 import android.widget.LinearLayout
+import android.widget.ListView
+import android.widget.ArrayAdapter
 import com.google.mlkit.nl.translate.TranslateLanguage
 import java.util.Locale
 
@@ -20,9 +21,10 @@ object LanguagePickerDialog {
         context: Context,
         onLanguageSelected: (String, Boolean) -> Unit
     ) {
+        // Root vertical layout
         val container = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(50, 40, 50, 10)
+            setPadding(40, 30, 40, 10)
         }
 
         val checkBox = CheckBox(context).apply {
@@ -30,15 +32,30 @@ object LanguagePickerDialog {
         }
         container.addView(checkBox)
 
-        AlertDialog.Builder(context)
+        // List of languages
+        val listView = ListView(context).apply {
+            adapter = ArrayAdapter(
+                context,
+                android.R.layout.simple_list_item_1,
+                languageNames
+            )
+        }
+        container.addView(listView)
+
+        // Checkbox below the list
+        val dialog = AlertDialog.Builder(context)
             .setTitle("Choose Language")
-            .setItems(languageNames.toTypedArray()) { dialog, which ->
-                val selectedLang = languages[which]
-                val keep = checkBox.isChecked
-                onLanguageSelected(selectedLang, keep)
-                dialog.dismiss()
-            }
             .setView(container)
-            .show()
+            .create()
+
+        // Handle language selection
+        listView.setOnItemClickListener { _, _, position, _ ->
+            val selectedLang = languages[position]
+            val keep = checkBox.isChecked
+            onLanguageSelected(selectedLang, keep)
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 }
