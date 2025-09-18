@@ -21,6 +21,9 @@ class TranslationManager(
     private val originalMenuTitles = mutableMapOf<Int, String>()
     private var originalToolbarTitle: String? = null
 
+    // 🔑 Cache for translations (original -> translated)
+    private val translationCache = mutableMapOf<String, String>()
+
     fun startObserving(actionBar: ActionBar?, bottomNav: BottomNavigationView?) {
         lifecycleScope.launch {
             viewModel.translationTrigger.collectLatest {
@@ -53,6 +56,9 @@ class TranslationManager(
         navHostFragment?.childFragmentManager?.fragments?.forEach { frag ->
             frag.view?.let { restoreViewTexts(it) }
         }
+
+        // clear cache after restoring
+        translationCache.clear()
     }
 
     private fun translateAll(actionBar: ActionBar?, bottomNav: BottomNavigationView?) {
@@ -74,7 +80,7 @@ class TranslationManager(
         if (originalToolbarTitle == null) originalToolbarTitle = current
 
         val original = originalToolbarTitle ?: current
-        viewModel.translate(original) { translated ->
+        translateText(original) { translated ->
             activity.runOnUiThread { actionBar.title = translated }
         }
     }
@@ -87,7 +93,7 @@ class TranslationManager(
             val original = originalMenuTitles[id] ?: item.title.toString().also {
                 originalMenuTitles[id] = it
             }
-            viewModel.translate(original) { translated ->
+            translateText(original) { translated ->
                 activity.runOnUiThread { item.title = translated }
             }
         }
@@ -100,7 +106,6 @@ class TranslationManager(
                 if (view is RecyclerView) {
                     translateRecyclerView(view)
                 }
-
                 for (i in 0 until view.childCount) {
                     traverseViews(view.getChildAt(i))
                 }
@@ -110,7 +115,7 @@ class TranslationManager(
                 val original = (view.getTag(tagKey) as? String) ?: view.text.toString().also {
                     view.setTag(tagKey, it)
                 }
-                viewModel.translate(original) { translated ->
+                translateText(original) { translated ->
                     if (translated.isNotBlank()) {
                         view.post { view.text = translated }
                     }
@@ -145,6 +150,22 @@ class TranslationManager(
             override fun onItemRangeInserted(positionStart: Int, itemCount: Int) = onChanged()
             override fun onItemRangeChanged(positionStart: Int, itemCount: Int) = onChanged()
         })
+    }
+
+    private fun translateText(original: String, callback: (String) -> Unit) {
+        // Use cache if available
+        translationCache[original]?.let {
+            callback(it)
+            return
+        }
+
+        // Otherwise call viewModel
+        viewModel.translate(original) { translated ->
+            if (translated.isNotBlank()) {
+                translationCache[original] = translated
+                callback(translated)
+            }
+        }
     }
 
     fun translateFragmentViews(fragment: Fragment) {
@@ -183,6 +204,9 @@ class TranslationManager(
         // restore fragment content
         val root = activity.findViewById<View>(android.R.id.content)
         restoreViews(root)
+
+        // clear cache after restoring
+        translationCache.clear()
     }
 
     private fun restoreViews(view: View) {

@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 class TranslationViewModel(private val repo: TranslationRepository) : ViewModel() {
 
-    private val _translationTrigger = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private val _translationTrigger = MutableSharedFlow<String>(replay = 0, extraBufferCapacity = 1)
     val translationTrigger: SharedFlow<String> = _translationTrigger
 
     private val _loading = MutableStateFlow(false)
@@ -34,8 +34,13 @@ class TranslationViewModel(private val repo: TranslationRepository) : ViewModel(
         viewModelScope.launch {
             _loading.value = true
             repo.prepareLanguage(lang) { success ->
-                _loading.value = false
-                if (success) _translationTrigger.tryEmit(lang)
+                // ensure we switch back on main/coroutine and reliably emit the trigger
+                viewModelScope.launch {
+                    _loading.value = false
+                    if (success) {
+                        _translationTrigger.emit(lang) // suspend until delivered to collectors
+                    }
+                }
             }
         }
     }
