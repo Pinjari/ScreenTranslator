@@ -7,19 +7,33 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.Translator
 import com.google.mlkit.nl.translate.TranslatorOptions
 
+/**
+ * Thin wrapper around MLKit translation client.
+ * - prepareLanguage downloads the model if needed and returns via callback when ready.
+ * - translate calls the currently prepared Translator instance (if available).
+ *
+ * This file intentionally stays simple. ViewModel is responsible for controlling when to call prepareLanguage().
+ */
 class TranslationRepository(private val context: Context) {
 
     private var translator: Translator? = null
     private var currentLang: String? = null
 
-    fun prepareLanguage(lang: String, onReady: (Boolean) -> Unit) {
+    /**
+     * Prepare given target language; if different from current, close existing translator and
+     * obtain a new one. Calls onReady(true) only when model/client ready.
+     */
+    fun prepareLanguage(
+        lang: String,
+        onReady: (Boolean) -> Unit
+    ) {
         if (lang != currentLang) {
             translator?.close()
             translator = null
         }
 
         val options = TranslatorOptions.Builder()
-            .setSourceLanguage(TranslateLanguage.ENGLISH)
+            .setSourceLanguage(TranslateLanguage.ENGLISH) // adjust if you want dynamic source
             .setTargetLanguage(lang)
             .build()
 
@@ -37,6 +51,10 @@ class TranslationRepository(private val context: Context) {
             }
     }
 
+    /**
+     * Translate the given string using the prepared translator.
+     * If translator is null, fallback to returning original text.
+     */
     fun translate(text: String, onResult: (String) -> Unit) {
         translator?.translate(text)
             ?.addOnSuccessListener { translated -> onResult(translated) }

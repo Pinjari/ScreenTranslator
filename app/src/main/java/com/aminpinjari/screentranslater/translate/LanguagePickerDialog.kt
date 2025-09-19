@@ -9,12 +9,21 @@ import android.widget.ArrayAdapter
 import com.google.mlkit.nl.translate.TranslateLanguage
 import java.util.Locale
 
+/**
+ * Language picker dialog:
+ * - shows language names in their native display language (autonym)
+ * - contains a "Keep translating on navigation" checkbox
+ * - returns (languageCode, keepBoolean)
+ *
+ * Keep it UI-simple and consistent with your previous code.
+ */
 object LanguagePickerDialog {
 
     private val languages = TranslateLanguage.getAllLanguages().toList()
     private val languageNames = languages.map { code ->
         val locale = Locale.forLanguageTag(code)
-        locale.getDisplayLanguage(locale) // autonym
+        // Use autonym (display name in native language) as requested
+        locale.getDisplayLanguage(locale)
     }
 
     fun show(
@@ -32,7 +41,7 @@ object LanguagePickerDialog {
         }
         container.addView(checkBox)
 
-        // List of languages
+        // Use a ListView (simple) to show many languages reliably
         val listView = ListView(context).apply {
             adapter = ArrayAdapter(
                 context,

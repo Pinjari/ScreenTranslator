@@ -1,23 +1,27 @@
 package com.aminpinjari.screentranslater.ui.home
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.aminpinjari.screentranslater.R // Ensure R is imported for R.id.original_text
 import com.aminpinjari.screentranslater.databinding.FragmentHomeBinding
 
 class HomeFragment : Fragment() {
 
     private var _binding: FragmentHomeBinding? = null
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
+    private var handler = Handler(Looper.getMainLooper())
+    private var delayedRunnable: Runnable? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -35,7 +39,6 @@ class HomeFragment : Fragment() {
             textView.text = it
         }
 
-        // List of English sentences starting with letters A-Z
         val sentences = listOf(
             "Apples are a healthy fruit.",
             "Birds sing sweetly in the morning.",
@@ -64,16 +67,97 @@ class HomeFragment : Fragment() {
             "Yaks live in mountainous regions.",
             "Zebras have black and white stripes."
         )
-        // Find the RecyclerView in your layout
+
         val recyclerViewSentences: RecyclerView = binding.listViewSentences
         recyclerViewSentences.layoutManager = LinearLayoutManager(requireContext())
-        // Create an adapter to display the list of sentences
         val adapter = SentenceAdapter(sentences)
         recyclerViewSentences.adapter = adapter
         return root
     }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        // First dynamic TextView (created in previous steps)
+        val dynamicTextViewOriginalText = "This is a Dynamically Added TextView!"
+        val dynamicTextView = TextView(requireContext()).apply {
+            id = View.generateViewId()
+            text = dynamicTextViewOriginalText
+            setTag(R.id.original_text, dynamicTextViewOriginalText)
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = resources.getDimensionPixelSize(R.dimen.dp_16)
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.dp_16)
+                marginStart = resources.getDimensionPixelSize(R.dimen.dp_8)
+                marginEnd = resources.getDimensionPixelSize(R.dimen.dp_8)
+            }
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+        }
+        binding.homeConstraintLayout.addView(dynamicTextView)
+
+        // New delayed TextView
+        val delayedTextViewOriginalText = "This TextView Appears After 2 Seconds!"
+        val delayedTextView = TextView(requireContext()).apply {
+            id = View.generateViewId()
+            text = delayedTextViewOriginalText
+            setTag(R.id.original_text, delayedTextViewOriginalText)
+            visibility = View.GONE // Initially hidden
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = resources.getDimensionPixelSize(R.dimen.dp_16)
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.dp_16)
+                marginStart = resources.getDimensionPixelSize(R.dimen.dp_8)
+                marginEnd = resources.getDimensionPixelSize(R.dimen.dp_8)
+            }
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            setBackgroundColor(android.graphics.Color.LTGRAY) // Optional: to make it visually distinct
+        }
+        binding.homeConstraintLayout.addView(delayedTextView)
+
+        // Apply Constraints
+        val constraintSet = ConstraintSet()
+        constraintSet.clone(binding.homeConstraintLayout)
+
+        // textView2 -> dynamicTextView
+        constraintSet.connect(binding.textView2.id, ConstraintSet.BOTTOM, dynamicTextView.id, ConstraintSet.TOP)
+
+        // dynamicTextView constraints
+        constraintSet.connect(dynamicTextView.id, ConstraintSet.TOP, binding.textView2.id, ConstraintSet.BOTTOM)
+        constraintSet.connect(dynamicTextView.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        constraintSet.connect(dynamicTextView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        constraintSet.connect(dynamicTextView.id, ConstraintSet.BOTTOM, delayedTextView.id, ConstraintSet.TOP)
+
+        // delayedTextView constraints
+        constraintSet.connect(delayedTextView.id, ConstraintSet.TOP, dynamicTextView.id, ConstraintSet.BOTTOM)
+        constraintSet.connect(delayedTextView.id, ConstraintSet.START, ConstraintSet.PARENT_ID, ConstraintSet.START)
+        constraintSet.connect(delayedTextView.id, ConstraintSet.END, ConstraintSet.PARENT_ID, ConstraintSet.END)
+        constraintSet.connect(delayedTextView.id, ConstraintSet.BOTTOM, binding.listViewSentences.id, ConstraintSet.TOP)
+
+        // listViewSentences constraints
+        constraintSet.clear(binding.listViewSentences.id, ConstraintSet.TOP) // Clear previous top constraint
+        constraintSet.connect(binding.listViewSentences.id, ConstraintSet.TOP, delayedTextView.id, ConstraintSet.BOTTOM)
+
+        constraintSet.applyTo(binding.homeConstraintLayout)
+
+        // Post runnable to make the delayedTextView visible after 2 seconds
+        delayedRunnable = Runnable {
+            // Ensure view and binding are still valid
+            if (_binding != null && isAdded) {
+                delayedTextView.visibility = View.VISIBLE
+            }
+        }
+        handler.postDelayed(delayedRunnable!!, 5000)
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        // Remove any pending callbacks from the handler to prevent memory leaks or crashes
+        delayedRunnable?.let { handler.removeCallbacks(it) }
+        delayedRunnable = null
         _binding = null
     }
 }
@@ -92,7 +176,9 @@ class SentenceAdapter(private val sentences: List<String>) :
     }
 
     override fun onBindViewHolder(holder: SentenceViewHolder, position: Int) {
-        holder.textView.text = sentences[position]
+        val originalSentence = sentences[position]
+        holder.textView.text = originalSentence
+        holder.textView.setTag(R.id.original_text, originalSentence)
     }
 
     override fun getItemCount(): Int {

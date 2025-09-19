@@ -4,15 +4,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
-import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.ui.AppBarConfiguration
@@ -29,10 +26,13 @@ import kotlinx.coroutines.launch
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+
     private val translationRepo by lazy { TranslationRepository(applicationContext) }
     private val translationVM: TranslationViewModel by viewModels {
         TranslationViewModel.Factory(translationRepo)
     }
+
+    private lateinit var translationManager: TranslationManager
 
     private var loadingDialog: AlertDialog? = null
     private val loadingMessages = listOf(
@@ -44,8 +44,6 @@ class MainActivity : AppCompatActivity() {
     private var messageIndex = 0
     private val handler = Handler(Looper.getMainLooper())
     private var messageRunnable: Runnable? = null
-
-    private lateinit var translationManager: TranslationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,11 +59,9 @@ class MainActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         binding.navView.setupWithNavController(navController)
 
-        // TranslationManager handles all view/scroll/recycler translations
         translationManager = TranslationManager(this, translationVM, lifecycleScope)
         translationManager.startObserving(supportActionBar, binding.navView)
 
-        // FAB → language picker
         binding.fabTranslate.setOnClickListener {
             LanguagePickerDialog.show(this) { lang, keep ->
                 translationVM.setLanguage(lang)
@@ -77,7 +73,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Handle navigation changes
+        // Navigation listener → re-translate or restore depending on checkbox (persistentLanguage)
         navController.addOnDestinationChangedListener { _, _, _ ->
             val lang = translationVM.persistentLanguage.value
             if (lang != null) {
@@ -87,28 +83,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Auto-translate when any fragment's view is created
-        supportFragmentManager.registerFragmentLifecycleCallbacks(
-            object : FragmentManager.FragmentLifecycleCallbacks() {
-                override fun onFragmentViewCreated(
-                    fm: FragmentManager,
-                    f: Fragment,
-                    v: View,
-                    savedInstanceState: Bundle?
-                ) {
-                    if (translationVM.persistentLanguage.value != null) {
-                        Handler(Looper.getMainLooper()).post {
-                            translationManager.translateFragmentViews(f)
-                        }
-                    } else {
-                        translationManager.restoreOriginals()
-                    }
-                }
-            },
-            true
-        )
-
-        // Loading dialog state
         lifecycleScope.launch {
             translationVM.loading.collectLatest { isLoading ->
                 if (isLoading) showLoadingDialog() else hideLoadingDialog()
@@ -116,7 +90,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // region Loading dialog
     private fun showLoadingDialog() {
         if (loadingDialog == null) {
             val progressBar = ProgressBar(this).apply { isIndeterminate = true }
@@ -149,7 +122,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-
         loadingDialog?.show()
         messageRunnable?.let { handler.postDelayed(it, 2000) }
     }
@@ -160,5 +132,4 @@ class MainActivity : AppCompatActivity() {
         loadingDialog?.dismiss()
         loadingDialog = null
     }
-    // endregion
 }
